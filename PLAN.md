@@ -31,7 +31,7 @@ tests/           unit, integration (SQLite fixture + local Postgres `database_to
 ```
 
 Toolchain: electron-vite 5, Vite 7, Svelte 5, @sveltejs/vite-plugin-svelte 6, Tailwind 4, bits-ui 2, CodeMirror 6,
-TypeScript 5.9, vitest 5, npm. Data lives in `~/Library/Application Support/database-tool` (override: `DATABASE_TOOL_HOME`).
+TypeScript 5.9, vitest 5, pnpm. Data lives in `~/Library/Application Support/database-tool` (override: `DATABASE_TOOL_HOME`).
 
 
 ---

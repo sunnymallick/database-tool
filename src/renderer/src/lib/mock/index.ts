@@ -1,6 +1,6 @@
 /**
  * In-memory backend used when the renderer runs in a plain browser
- * (`npm run dev:web`). Data handlers live in ./data.ts (workbench slice),
+ * (`pnpm dev:web`). Data handlers live in ./data.ts (workbench slice),
  * AI handlers in ./ai.ts (AI slice).
  */
 import type { ApiMethod, PreloadBridge } from '@shared/api';

@@ -7,9 +7,9 @@ Built with Electron, Svelte 5, Tailwind 4, and CodeMirror 6. The AI runs on the 
 ## Run it
 
 ```sh
-npm install
-npm run dev            # development mode with hot reload
-npm run package:mac    # builds release/mac-arm64/Database Tool.app
+pnpm install
+pnpm dev          # development mode with hot reload
+pnpm package:mac  # builds release/mac-arm64/Database Tool.app
 ```
 
 Open `release/mac-arm64/Database Tool.app` to use the packaged app. It is unsigned, so if macOS blocks it, right-click it and choose Open.
@@ -32,7 +32,7 @@ The AI panel needs the Claude CLI to be signed in. If the panel says you're sign
 | Passwords | macOS Keychain, service `database-tool` |
 | AI conversation transcripts (needed for follow-up turns) | `~/.claude/projects/` |
 
-Set `DATABASE_TOOL_HOME` to use a different data folder, as the tests do. `npm run dev` uses its own Electron profile folder, so it can run while the installed app is open.
+Set `DATABASE_TOOL_HOME` to use a different data folder, as the tests do. `pnpm dev` uses its own Electron profile folder, so it can run while the installed app is open.
 
 ## Safety model
 
@@ -43,15 +43,15 @@ Set `DATABASE_TOOL_HOME` to use a different data folder, as the tests do. `npm r
 ## Develop
 
 ```sh
-npm run typecheck      # tsc (main) + svelte-check (renderer)
-npm test               # vitest: unit, SQLite integration, Postgres integration, AI
-npm run fixtures       # (re)build tests/fixtures/sample.sqlite and the local Postgres DB database_tool_test
-npm run test:e2e       # builds, then drives the real Electron app (IPC smoke + file open/export)
-npm run test:tour      # builds, then clicks through the UI and saves screenshots
-npm run dev:web        # renderer only, in a browser, against an in-memory mock backend
+pnpm typecheck  # tsc (main) + svelte-check (renderer)
+pnpm test       # vitest: unit, SQLite integration, Postgres integration, AI
+pnpm fixtures   # (re)build tests/fixtures/sample.sqlite and the local Postgres DB database_tool_test
+pnpm test:e2e   # builds, then drives the real Electron app (IPC smoke + file open/export)
+pnpm test:tour  # builds, then clicks through the UI and saves screenshots
+pnpm dev:web    # renderer only, in a browser, against an in-memory mock backend
 ```
 
-The Postgres integration tests expect a local server with a `database_tool_test` database, which `npm run fixtures` creates. They skip themselves when no server is reachable.
+The Postgres integration tests expect a local server with a `database_tool_test` database, which `pnpm fixtures` creates. They skip themselves when no server is reachable.
 
 Layout:
 

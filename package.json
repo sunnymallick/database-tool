@@ -11,6 +11,7 @@
   "engines": {
     "node": ">=22.12"
   },
+  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "electron-vite dev",
     "dev:web": "vite --config vite.web.config.ts",
@@ -18,13 +19,13 @@
     "start": "electron-vite preview",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "svelte-check --tsconfig ./tsconfig.web.json --threshold error",
-    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
     "test": "vitest run",
     "test:watch": "vitest",
     "fixtures": "tsx scripts/make-fixtures.ts",
-    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/files.mjs",
-    "package:mac": "npm run build && electron-builder --mac --dir",
-    "test:tour": "npm run build && node tests/e2e/ui-tour.mjs"
+    "test:e2e": "pnpm build && node tests/e2e/smoke.mjs && node tests/e2e/files.mjs",
+    "package:mac": "pnpm build && electron-builder --mac --dir",
+    "test:tour": "pnpm build && node tests/e2e/ui-tour.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.296",

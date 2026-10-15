@@ -3,7 +3,7 @@
  * against a temp COPY of tests/fixtures/sample.sqlite through a minimal
  * node:sqlite registry (independent of the data layer's drivers).
  *
- *   DATABASE_TOOL_HOME=$(mktemp -d) npx tsx scripts/ai-smoke.ts
+ *   DATABASE_TOOL_HOME=$(mktemp -d) pnpm exec tsx scripts/ai-smoke.ts
  *
  * Scenarios (model claude-haiku-5-5 to keep usage small):
  *  a) "How many orders are there per status?" must call run_select and answer with the counts.
@@ -238,7 +238,7 @@ const services: DataServices = {
 // Run
 // ---------------------------------------------------------------------------
 
-// `npx tsx` only reads the root tsconfig.json, which has no `paths`; map the
+// `pnpm exec tsx` only reads the root tsconfig.json, which has no `paths`; map the
 // `@shared/*` alias used by src/main for the modules imported below.
 const sharedUrl = pathToFileURL(resolve('src/shared') + '/').href;
 register(

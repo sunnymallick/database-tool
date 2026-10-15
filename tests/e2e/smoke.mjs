@@ -2,7 +2,7 @@
 // data dir and exercises the real IPC surface (SQLite fixture copy + local
 // Postgres `database_tool_test`), then screenshots the UI.
 //
-//   npm run test:e2e            (builds first)
+//   pnpm test:e2e            (builds first)
 //   SMOKE_SHOTS=dir node tests/e2e/smoke.mjs
 import { copyFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -4,7 +4,7 @@
 // overwriting), to one .xlsx workbook, single-result Excel export, and that
 // save dialogs reopen in the last folder used this session.
 //
-//   npm run build && node tests/e2e/files.mjs
+//   pnpm build && node tests/e2e/files.mjs
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

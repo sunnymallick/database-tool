@@ -1,5 +1,5 @@
 /**
- * Standalone harness for the AI panel (browser only): `npm run dev:web`, then
+ * Standalone harness for the AI panel (browser only): `pnpm dev:web`, then
  * open /ai-preview.html. Mounts AiPanel in a right-hand dock with the mock
  * backend and a fake workbench, plus controls for theme and context.
  *

@@ -2,7 +2,7 @@
 // SQLite fixture and local Postgres, screenshotting each step. Optional live
 // AI turn (uses the Claude subscription): UI_TOUR_AI=1.
 //
-//   npm run build && UI_TOUR_SHOTS=/tmp/shots node tests/e2e/ui-tour.mjs
+//   pnpm build && UI_TOUR_SHOTS=/tmp/shots node tests/e2e/ui-tour.mjs
 import { copyFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

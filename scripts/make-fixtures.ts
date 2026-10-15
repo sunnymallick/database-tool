@@ -3,8 +3,8 @@
  *   tests/fixtures/sample.sqlite             a small "shop" database (SQLite)
  *   Postgres database `database_tool_test`   the same shop plus Postgres-specific objects
  *
- * Usage: npm run fixtures            (both)
- *        npm run fixtures -- sqlite  (SQLite only)
+ * Usage: pnpm fixtures         (both)
+ *        pnpm fixtures sqlite  (SQLite only)
  * Postgres URL: DATABASE_TOOL_TEST_PG (default postgres://localhost:5432/database_tool_test).
  */
 import { existsSync, mkdirSync, rmSync } from 'node:fs';

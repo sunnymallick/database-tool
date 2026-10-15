@@ -2,7 +2,7 @@
  * Typed client for the main-process API (src/shared/api.ts). Import as `$lib/api.svelte`.
  *
  * Inside Electron it talks to the preload bridge. In a plain browser
- * (`npm run dev:web`) it falls back to the in-memory mock backend in ./mock,
+ * (`pnpm dev:web`) it falls back to the in-memory mock backend in ./mock,
  * so the UI can be developed and screenshotted without Electron.
  */
 import type {
