@@ -1,0 +1,15 @@
+appId: dev.sunnymallick.database-tool
+productName: Database Tool
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+asarUnpack:
+  - "node_modules/@anthropic-ai/claude-agent-sdk*/**"
+mac:
+  category: public.app-category.developer-tools
+  target: dir
+  identity: null
