@@ -4,13 +4,24 @@ A desktop database client for **PostgreSQL**, **MySQL**, **SQL Server**, and **S
 
 Built with Electron, Svelte 5, Tailwind 4, and CodeMirror 6. The AI runs on the Claude Agent SDK and your existing Claude subscription login, so no API key is needed. Feature parity notes against the dbTool app this replaces are in `PLAN.md`.
 
+## Requirements
+
+- macOS on Apple Silicon. Only the arm64 build is set up.
+- Node.js 22.12 or newer.
+- pnpm 12. Running `corepack enable` once picks up the version pinned in `package.json`. You can also install pnpm yourself with `npm install -g pnpm`.
+- The Claude CLI, signed in, for the AI panel (see below).
+
 ## Run it
 
 ```sh
+git clone https://github.com/sunnymallick/database-tool.git
+cd database-tool
 pnpm install
 pnpm dev          # development mode with hot reload
 pnpm package:mac  # builds release/mac-arm64/Database Tool.app
 ```
+
+The first `pnpm dev` downloads the Electron binary, so it takes a little longer.
 
 Open `release/mac-arm64/Database Tool.app` to use the packaged app. It is unsigned, so if macOS blocks it, right-click it and choose Open.
 
@@ -52,6 +63,10 @@ pnpm dev:web    # renderer only, in a browser, against an in-memory mock backend
 ```
 
 The Postgres integration tests expect a local server with a `database_tool_test` database, which `pnpm fixtures` creates. They skip themselves when no server is reachable.
+
+`pnpm-workspace.yaml` holds two settings to keep:
+- `nodeLinker: hoisted` gives a flat `node_modules`. The app and electron-builder expect the Claude SDK's native binary at `node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64`, which pnpm's default layout would hide.
+- `allowBuilds` lists which dependencies may run install scripts. If a new dependency needs one, `pnpm install` stops and names it. Run `pnpm approve-builds <name>` to allow it.
 
 Layout:
 
