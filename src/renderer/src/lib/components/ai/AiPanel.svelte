@@ -9,7 +9,7 @@
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import { onMount } from 'svelte';
   import { registerAi, workbench } from '$lib/bridge';
-  import { aiChat } from '$lib/stores/ai.svelte';
+  import { aiBridge, aiChat } from '$lib/stores/ai.svelte';
   import AiComposer from './AiComposer.svelte';
   import AiConnectionMenu from './AiConnectionMenu.svelte';
   import AiMessages from './AiMessages.svelte';
@@ -20,14 +20,14 @@
 
   onMount(() => {
     aiChat.init();
-    const unregister = registerAi({ ask: (prompt, opts) => aiChat.ask(prompt, opts) });
+    const unregister = registerAi(aiBridge);
     // The workbench's active tab is read through a plain function; re-read it periodically.
     const timer = setInterval(() => aiChat.activeTick++, 1000);
     return () => {
       clearInterval(timer);
       unregister();
       // Keep `ai.ask()` working while the panel is closed.
-      registerAi({ ask: (prompt, opts) => aiChat.ask(prompt, opts) });
+      registerAi(aiBridge);
     };
   });
 

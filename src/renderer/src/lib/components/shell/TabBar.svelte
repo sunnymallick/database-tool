@@ -7,6 +7,7 @@
   import TableProperties from '@lucide/svelte/icons/table-properties';
   import Eye from '@lucide/svelte/icons/eye';
   import X from '@lucide/svelte/icons/x';
+  import { ai } from '$lib/bridge';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import { connections } from '$lib/stores/connections.svelte';
   import { tabs, type Tab } from '$lib/stores/tabs.svelte';
@@ -72,6 +73,7 @@
           {@const p = connections.byId(t.conn?.profileId)}
           {@const active = t.id === tabs.activeId}
           {@const prod = !!p?.production}
+          {@const aiState = ai.activity(t.conn)}
           <div
             data-tab-id={t.id}
             role="tab"
@@ -143,6 +145,13 @@
               />
             {:else}
               <span class="min-w-0 flex-1 truncate">{t.title}</span>
+            {/if}
+            {#if aiState}
+              <span
+                class={cn('size-1.5 shrink-0 rounded-full', aiState === 'awaiting' ? 'bg-warning' : 'animate-pulse bg-accent')}
+                title={aiState === 'awaiting' ? 'The AI assistant is waiting for your approval' : 'The AI assistant is answering'}
+                data-testid="tab-ai-activity"
+              ></span>
             {/if}
             {#if t.kind === 'query' && t.running}
               <span class="spinner size-3 shrink-0 text-accent"></span>

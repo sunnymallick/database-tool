@@ -1,8 +1,13 @@
 /**
- * AI panel state: the conversation, the streaming turn, panel settings
+ * AI panel state: one conversation per connection, panel settings
  * (model, connection target, allow-writes, include-editor), and CLI status.
  *
- * A module singleton, so the conversation survives the panel being closed
+ * Each connection (profile + database) gets its own agent session, so a
+ * sandbox chat never sees a production chat's context. The panel shows the
+ * conversation for the target connection; other conversations keep
+ * streaming in the background.
+ *
+ * A module singleton, so conversations survive the panel being closed
  * and `ai.ask()` works before the panel is first shown.
  */
 import {
@@ -16,8 +21,9 @@ import {
   type EditorSnapshot
 } from '@shared/ai';
 import type { AppSettings, ConnRef, ConnectionProfile, ConnectionStatus } from '@shared/types';
+import { SvelteMap } from 'svelte/reactivity';
 import { call, errorMessage, on } from '$lib/api.svelte';
-import { registerAi, workbench, type AskAiOptions } from '$lib/bridge';
+import { registerAi, workbench, type AiActivity, type AskAiOptions } from '$lib/bridge';
 
 export type ToolState = 'running' | 'awaiting' | 'ok' | 'error' | 'denied' | 'stopped';
 
@@ -56,10 +62,25 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-function sameRef(a: ConnRef | null, b: ConnRef | null): boolean {
-  if (!a || !b) return a === b;
-  return a.profileId === b.profileId && (a.database ?? '') === (b.database ?? '');
+/** One agent session, bound to a single connection (or to none). */
+class AiConversation {
+  readonly sessionId = newId();
+  items = $state<ChatItem[]>([]);
+  /** The running turn, or null when idle. */
+  turnId = $state<string | null>(null);
+  /** Transient progress text while a turn runs. */
+  progress = $state<string | null>(null);
+  input = $state('');
+  readonly busy = $derived(this.turnId !== null);
+  lastPrompt: string | null = null;
+  turnStartedAt = 0;
+  turnModel = DEFAULT_AI_MODEL;
+
+  constructor(readonly ref: ConnRef | null) {}
 }
+
+/** Shown while the target connection has no conversation yet; never mutated. */
+const EMPTY = new AiConversation(null);
 
 export const SUGGESTED_PROMPTS: readonly { label: string; prompt: string; needsEditor?: boolean }[] = [
   { label: 'Summarize this database', prompt: 'Summarize this database: the main tables, how they relate, and roughly how much data each holds.' },
@@ -74,24 +95,14 @@ class AiChatStore {
   statusLoading = $state(false);
   statusError = $state<string | null>(null);
 
-  // -- conversation ---------------------------------------------------------
-  sessionId = $state(newId());
-  items = $state<ChatItem[]>([]);
-  /** The running turn, or null when idle. */
-  turnId = $state<string | null>(null);
-  /** Transient progress text while a turn runs. */
-  progress = $state<string | null>(null);
-  readonly busy = $derived(this.turnId !== null);
-  private lastPrompt: string | null = null;
-  private turnStartedAt = 0;
-  private turnModel = DEFAULT_AI_MODEL;
+  // -- conversations, keyed by connection ------------------------------------
+  private conversations = new SvelteMap<string, AiConversation>();
 
   // -- panel settings -------------------------------------------------------
   model = $state<string>(DEFAULT_AI_MODEL);
   allowWrites = $state(false);
   includeEditor = $state(true);
   target = $state<ConnTarget>({ mode: 'active' });
-  input = $state('');
   /** Bumped to ask the composer to focus (e.g. after `ai.ask`). */
   focusRequest = $state(0);
 
@@ -120,6 +131,29 @@ class AiChatStore {
 
   readonly targetProfile = $derived(this.targetRef ? this.profileById(this.targetRef.profileId) : null);
 
+  /** The conversation the panel shows: the target connection's. */
+  readonly current = $derived(this.conversations.get(this.convKey(this.targetRef)) ?? EMPTY);
+
+  get items(): ChatItem[] {
+    return this.current.items;
+  }
+
+  get progress(): string | null {
+    return this.current.progress;
+  }
+
+  get busy(): boolean {
+    return this.current.busy;
+  }
+
+  get input(): string {
+    return this.current.input;
+  }
+
+  set input(v: string) {
+    if (v || this.current !== EMPTY) this.ensure().input = v;
+  }
+
   /** Connected profiles the user can pin. */
   readonly connectedOptions = $derived.by((): ConnOption[] => {
     const out: ConnOption[] = [];
@@ -141,6 +175,33 @@ class AiChatStore {
 
   profileById(id: string): ConnectionProfile | null {
     return this.profiles.find((p) => p.id === id) ?? null;
+  }
+
+  /** Conversation key: refs that resolve to the same database share a chat. */
+  convKey(ref: ConnRef | null): string {
+    if (!ref) return 'none';
+    const p = this.profileById(ref.profileId);
+    const db = p?.kind === 'sqlite' ? '' : (ref.database ?? p?.database ?? '');
+    return `${ref.profileId}/${db}`;
+  }
+
+  /** The target connection's conversation, created on first use. */
+  private ensure(): AiConversation {
+    const ref = this.targetRef;
+    const key = this.convKey(ref);
+    let c = this.conversations.get(key);
+    if (!c) {
+      c = new AiConversation(ref);
+      this.conversations.set(key, c);
+    }
+    return c;
+  }
+
+  /** Whether `ref`'s chat is answering or waiting for an approval. */
+  activity(ref: ConnRef | null): AiActivity {
+    const c = this.conversations.get(this.convKey(ref));
+    if (!c?.busy) return null;
+    return pendingApprovals(c.items) > 0 ? 'awaiting' : 'busy';
   }
 
   connLabel(ref: ConnRef | null): string {
@@ -242,22 +303,23 @@ class AiChatStore {
     const text = (prompt ?? this.input).trim();
     if (!text || this.busy) return false;
 
-    const conn = this.targetRef;
+    const c = this.ensure();
+    const conn = c.ref;
     const editor = this.includeEditor ? workbench.activeEditor() : null;
     const turnId = newId();
     const context = [editor ? `Editor: ${editor.title}` : null, conn ? this.connLabel(conn) : 'No database']
       .filter(Boolean)
       .join(' · ');
-    this.items.push({ kind: 'user', id: newId(), text, context });
-    if (fromInput) this.input = '';
-    this.lastPrompt = text;
-    this.turnId = turnId;
-    this.turnStartedAt = Date.now();
-    this.turnModel = this.model;
-    this.progress = null;
+    c.items.push({ kind: 'user', id: newId(), text, context });
+    if (fromInput) c.input = '';
+    c.lastPrompt = text;
+    c.turnId = turnId;
+    c.turnStartedAt = Date.now();
+    c.turnModel = this.model;
+    c.progress = null;
     try {
       await call('ai.send', {
-        sessionId: this.sessionId,
+        sessionId: c.sessionId,
         turnId,
         prompt: text,
         conn,
@@ -267,46 +329,48 @@ class AiChatStore {
       });
       return true;
     } catch (err) {
-      if (this.turnId === turnId) {
-        this.turnId = null;
-        this.progress = null;
-        this.items.push({ kind: 'error', id: newId(), message: errorMessage(err), code: null, retryPrompt: text });
+      if (c.turnId === turnId) {
+        c.turnId = null;
+        c.progress = null;
+        c.items.push({ kind: 'error', id: newId(), message: errorMessage(err), code: null, retryPrompt: text });
       }
       return false;
     }
   }
 
   retry(prompt: string | null): void {
-    const p = prompt ?? this.lastPrompt;
+    const p = prompt ?? this.current.lastPrompt;
     if (p) void this.send(p);
   }
 
   stop(): void {
-    if (!this.turnId) return;
-    this.progress = 'Stopping…';
-    call('ai.cancel', { sessionId: this.sessionId }).catch(() => {});
+    const c = this.current;
+    if (!c.turnId) return;
+    c.progress = 'Stopping…';
+    call('ai.cancel', { sessionId: c.sessionId }).catch(() => {});
   }
 
   answer(toolUseId: string, approved: boolean): void {
-    const item = this.items.find((i) => i.kind === 'tool' && i.id === toolUseId);
+    const c = this.current;
+    const item = c.items.find((i) => i.kind === 'tool' && i.id === toolUseId);
     if (item && item.kind === 'tool') {
       item.decision = approved ? 'approved' : 'rejected';
       item.state = approved ? 'running' : 'denied';
       if (!approved) item.summary = 'Rejected';
     }
-    call('ai.approve', { sessionId: this.sessionId, toolUseId, approved }).catch((err) => {
-      this.items.push({ kind: 'error', id: newId(), message: errorMessage(err), code: null, retryPrompt: null });
+    call('ai.approve', { sessionId: c.sessionId, toolUseId, approved }).catch((err) => {
+      c.items.push({ kind: 'error', id: newId(), message: errorMessage(err), code: null, retryPrompt: null });
     });
   }
 
+  /** Start over on the target connection only; other connections' chats are kept. */
   newChat(): void {
-    const old = this.sessionId;
-    call('ai.reset', { sessionId: old }).catch(() => {});
-    this.sessionId = newId();
-    this.items = [];
-    this.turnId = null;
-    this.progress = null;
-    this.lastPrompt = null;
+    const old = this.current;
+    if (old !== EMPTY) {
+      call('ai.reset', { sessionId: old.sessionId }).catch(() => {});
+      this.conversations.delete(this.convKey(this.targetRef));
+      if (old.input) this.ensure().input = old.input;
+    }
     this.focusRequest++;
   }
 
@@ -318,7 +382,7 @@ class AiChatStore {
       // Asking about the active tab's own connection keeps "follow the active tab".
       this.target = !opts.conn
         ? { mode: 'none' }
-        : sameRef(opts.conn, workbench.activeConn())
+        : this.convKey(opts.conn) === this.convKey(workbench.activeConn())
           ? { mode: 'active' }
           : { mode: 'pinned', ref: opts.conn };
     }
@@ -334,19 +398,20 @@ class AiChatStore {
   // -- events -----------------------------------------------------------------
 
   private onEvent(e: AiEvent): void {
-    if (e.sessionId !== this.sessionId || e.turnId !== this.turnId) return;
-    const last = this.items[this.items.length - 1];
+    const c = [...this.conversations.values()].find((x) => x.sessionId === e.sessionId);
+    if (!c || e.turnId !== c.turnId) return;
+    const last = c.items[c.items.length - 1];
     switch (e.type) {
       case 'text_delta':
-        this.progress = null;
+        c.progress = null;
         if (last && last.kind === 'text') last.text += e.text;
-        else this.items.push({ kind: 'text', id: newId(), text: e.text.replace(/^\n+/, '') });
+        else c.items.push({ kind: 'text', id: newId(), text: e.text.replace(/^\n+/, '') });
         break;
       case 'tool_call': {
-        this.progress = null;
-        const existing = this.items.find((i) => i.kind === 'tool' && i.id === e.toolUseId);
+        c.progress = null;
+        const existing = c.items.find((i) => i.kind === 'tool' && i.id === e.toolUseId);
         if (existing) break;
-        this.items.push({
+        c.items.push({
           kind: 'tool',
           id: e.toolUseId,
           name: e.name,
@@ -357,12 +422,12 @@ class AiChatStore {
           state: e.needsApproval ? 'awaiting' : 'running',
           summary: '',
           decision: null,
-          connLabel: this.connLabel(this.targetRef)
+          connLabel: this.connLabel(c.ref)
         });
         break;
       }
       case 'tool_result': {
-        const item = this.items.find((i) => i.kind === 'tool' && i.id === e.toolUseId);
+        const item = c.items.find((i) => i.kind === 'tool' && i.id === e.toolUseId);
         if (item && item.kind === 'tool') {
           item.state = e.denied ? 'denied' : e.ok ? 'ok' : 'error';
           item.summary = e.denied && item.decision === 'rejected' ? 'Rejected' : e.summary;
@@ -370,36 +435,36 @@ class AiChatStore {
         break;
       }
       case 'propose_sql':
-        this.progress = null;
-        this.items.push({ kind: 'proposal', id: e.toolUseId, sql: e.sql, explanation: e.explanation ?? null, conn: e.conn });
+        c.progress = null;
+        c.items.push({ kind: 'proposal', id: e.toolUseId, sql: e.sql, explanation: e.explanation ?? null, conn: e.conn });
         break;
       case 'status':
-        this.progress = e.message;
+        c.progress = e.message;
         break;
       case 'error':
-        this.items.push({ kind: 'error', id: newId(), message: e.message, code: e.code ?? null, retryPrompt: this.lastPrompt });
+        c.items.push({ kind: 'error', id: newId(), message: e.message, code: e.code ?? null, retryPrompt: c.lastPrompt });
         if (e.code === 'not_logged_in' || e.code === 'cli_missing') void this.loadStatus(true);
         break;
       case 'turn_done': {
-        for (const item of this.items) {
+        for (const item of c.items) {
           if (item.kind === 'tool' && (item.state === 'running' || item.state === 'awaiting')) {
             item.state = 'stopped';
             item.summary = e.cancelled ? 'Stopped' : 'Did not finish';
           }
         }
-        const secs = ((e.durationMs ?? Date.now() - this.turnStartedAt) / 1000).toFixed(1);
+        const secs = ((e.durationMs ?? Date.now() - c.turnStartedAt) / 1000).toFixed(1);
         if (e.cancelled) {
-          this.items.push({ kind: 'meta', id: newId(), text: 'Stopped', title: null });
+          c.items.push({ kind: 'meta', id: newId(), text: 'Stopped', title: null });
         } else if (!e.failed) {
-          this.items.push({
+          c.items.push({
             kind: 'meta',
             id: newId(),
-            text: `${aiModelLabel(this.turnModel)} · ${secs}s`,
+            text: `${aiModelLabel(c.turnModel)} · ${secs}s`,
             title: e.costUsd !== undefined ? `About $${e.costUsd.toFixed(4)} at API rates (covered by your Claude plan)` : null
           });
         }
-        this.turnId = null;
-        this.progress = null;
+        c.turnId = null;
+        c.progress = null;
         break;
       }
     }
@@ -408,9 +473,14 @@ class AiChatStore {
 
 export const aiChat = new AiChatStore();
 
+export const aiBridge = {
+  ask: (prompt: string, opts?: AskAiOptions) => aiChat.ask(prompt, opts),
+  activity: (conn: ConnRef | null) => aiChat.activity(conn)
+};
+
 // Registered at load (the workbench imports the panel eagerly), so other UI can
 // call `ai.ask()` even while the panel is closed.
-registerAi({ ask: (prompt, opts) => aiChat.ask(prompt, opts) });
+registerAi(aiBridge);
 
 /** For the composer and tests: whether an approval is still waiting. */
 export function pendingApprovals(items: ChatItem[]): number {

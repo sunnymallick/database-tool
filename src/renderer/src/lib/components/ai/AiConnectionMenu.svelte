@@ -1,4 +1,4 @@
-<!-- Picks the connection the agent's tools act on. -->
+<!-- Picks the connection the agent's tools act on. Each connection has its own chat, so this also switches chats. -->
 <script lang="ts">
   import { DropdownMenu } from 'bits-ui';
   import Check from '@lucide/svelte/icons/check';
@@ -31,7 +31,7 @@
 <DropdownMenu.Root>
   <DropdownMenu.Trigger
     class="flex h-6 max-w-full min-w-0 items-center gap-1.5 rounded px-1.5 text-[12px] hover:bg-hover"
-    title="Connection the assistant's tools use"
+    title="Connection the assistant's tools use. Each connection has its own chat."
     data-testid="ai-conn-trigger"
   >
     {#if ref}
@@ -60,9 +60,16 @@
           Connected
         </DropdownMenu.GroupHeading>
         {#each aiChat.connectedOptions as opt (opt.ref.profileId + '/' + (opt.ref.database ?? ''))}
+          {@const activity = aiChat.activity(opt.ref)}
           <DropdownMenu.Item class={itemClass} onSelect={() => aiChat.setTarget({ mode: 'pinned', ref: opt.ref })}>
             <Check class="size-3.5 {isPinned(opt.ref) ? 'opacity-100' : 'opacity-0'}" />
             <span class="flex-1 truncate">{opt.label}</span>
+            {#if activity}
+              <span
+                class="size-1.5 shrink-0 rounded-full {activity === 'awaiting' ? 'bg-warning' : 'animate-pulse bg-accent'}"
+                title={activity === 'awaiting' ? 'Waiting for your approval' : 'Answering'}
+              ></span>
+            {/if}
             {#if opt.profile?.production}<span class="badge bg-prod-soft text-prod">prod</span>{/if}
             {#if opt.profile?.readOnly}<span class="badge bg-hover text-muted">read-only</span>{/if}
           </DropdownMenu.Item>

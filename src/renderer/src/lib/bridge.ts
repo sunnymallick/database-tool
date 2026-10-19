@@ -38,10 +38,15 @@ export interface AskAiOptions {
   send?: boolean;
 }
 
+/** What a connection's AI chat is doing: answering, or waiting for an approval. */
+export type AiActivity = 'awaiting' | 'busy' | null;
+
 /** Implemented by the AI panel. */
 export interface AiBridge {
   /** Open the AI panel and prefill (or send) a prompt. */
   ask(prompt: string, opts?: AskAiOptions): void;
+  /** Activity of the chat for `conn` (each connection has its own chat). */
+  activity(conn: ConnRef | null): AiActivity;
 }
 
 let workbenchImpl: WorkbenchBridge | null = null;
@@ -72,5 +77,6 @@ export const workbench: WorkbenchBridge = {
 };
 
 export const ai: AiBridge = {
-  ask: (prompt, opts) => aiImpl?.ask(prompt, opts)
+  ask: (prompt, opts) => aiImpl?.ask(prompt, opts),
+  activity: (conn) => aiImpl?.activity(conn) ?? null
 };
