@@ -5,7 +5,9 @@
 <script lang="ts">
   import { untrack, type Component } from 'svelte';
   import Bot from '@lucide/svelte/icons/bot';
+  import Check from '@lucide/svelte/icons/check';
   import CodeXml from '@lucide/svelte/icons/code-xml';
+  import Copy from '@lucide/svelte/icons/copy';
   import FolderOpen from '@lucide/svelte/icons/folder-open';
   import Info from '@lucide/svelte/icons/info';
   import Minus from '@lucide/svelte/icons/minus';
@@ -17,12 +19,15 @@
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import Sun from '@lucide/svelte/icons/sun';
   import Table2 from '@lucide/svelte/icons/table-2';
+  import Terminal from '@lucide/svelte/icons/terminal';
   import type { AiStatus } from '@shared/ai';
-  import { DEFAULT_SETTINGS, type AppInfo, type ThemeMode } from '@shared/types';
+  import { DEFAULT_SETTINGS, type AppInfo, type ClaudeCodeStatus, type ThemeMode } from '@shared/types';
   import { call, errorMessage } from '$lib/api.svelte';
+  import { copyText } from '$lib/components/ai/clipboard';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   import Switch from '$lib/components/ui/Switch.svelte';
+  import { connections } from '$lib/stores/connections.svelte';
   import { dialogs } from '$lib/stores/dialogs.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { clamp, cn, debounce, formatCount } from '$lib/utils';
@@ -33,7 +38,7 @@
     hint?: string;
   }
 
-  type Section = 'appearance' | 'editor' | 'results' | 'safety' | 'ai' | 'about';
+  type Section = 'appearance' | 'editor' | 'results' | 'safety' | 'ai' | 'claudeCode' | 'about';
 
   const SECTIONS: { id: Section; label: string; icon: Component<{ class?: string }> }[] = [
     { id: 'appearance', label: 'Appearance', icon: Paintbrush },
@@ -41,6 +46,7 @@
     { id: 'results', label: 'Results', icon: Table2 },
     { id: 'safety', label: 'Safety', icon: ShieldAlert },
     { id: 'ai', label: 'AI assistant', icon: Bot },
+    { id: 'claudeCode', label: 'Claude Code', icon: Terminal },
     { id: 'about', label: 'About', icon: Info }
   ];
 
@@ -74,6 +80,16 @@
   let aiStatusError = $state('');
   let appInfo = $state<AppInfo | null>(null);
   let appInfoError = $state('');
+
+  let ccStatus = $state<ClaudeCodeStatus | null>(null);
+  let ccError = $state('');
+  let ccBusy = $state(false);
+  let ccCopied = $state(false);
+  let ccCopiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const sharedProfiles = $derived(
+    connections.profiles.filter((p) => p.claudeCodeAccess).sort((a, b) => a.name.localeCompare(b.name))
+  );
 
   function parseInt10(text: string): number | null {
     const t = text.trim();
@@ -129,6 +145,7 @@
         syncFromSettings();
         void loadAiStatus(false);
         if (!appInfo) void loadAppInfo();
+        void loadClaudeCode();
       } else if (!open && wasOpen) {
         flushAll();
       }
@@ -154,6 +171,38 @@
     } catch (err) {
       appInfoError = errorMessage(err);
     }
+  }
+
+  async function loadClaudeCode(): Promise<void> {
+    try {
+      ccStatus = await call('claudeCode.status');
+      ccError = '';
+    } catch (err) {
+      ccError = errorMessage(err);
+    }
+  }
+
+  async function setCliInstalled(install: boolean): Promise<void> {
+    ccBusy = true;
+    try {
+      ccStatus = await call(install ? 'claudeCode.installCli' : 'claudeCode.uninstallCli');
+      ccError = '';
+    } catch (err) {
+      ccError = errorMessage(err);
+    } finally {
+      ccBusy = false;
+    }
+  }
+
+  async function copyMcpCommand(): Promise<void> {
+    if (!ccStatus) return;
+    if (!(await copyText(ccStatus.mcpCommand))) {
+      ccError = 'Could not copy to the clipboard. Select the command and copy it by hand.';
+      return;
+    }
+    ccCopied = true;
+    clearTimeout(ccCopiedTimer);
+    ccCopiedTimer = setTimeout(() => (ccCopied = false), 1500);
   }
 
   function stepFont(delta: number): void {
@@ -415,6 +464,105 @@
           </div>
           <p class="hint">Leave empty to find the <span class="font-mono">claude</span> CLI automatically.</p>
         </div>
+      </div>
+    {:else if section === 'claudeCode'}
+      <h3 class="mb-3 text-[13px] font-semibold">Claude Code</h3>
+      <div class="flex flex-col gap-4">
+        <p class="text-[12px] leading-snug text-muted">
+          Let Claude Code sessions in your projects read databases through the <span class="font-mono">db-tool</span>
+          command and its MCP server. Access is read-only, and each connection stays hidden until you turn on
+          <span class="text-fg">Claude Code access</span> in its settings.
+        </p>
+
+        <div class="field">
+          <span class="label">Shared connections</span>
+          {#if sharedProfiles.length}
+            <ul class="flex flex-col gap-1 text-[12.5px]">
+              {#each sharedProfiles as p (p.id)}
+                <li class="flex items-center gap-2">
+                  <Terminal class="size-3 shrink-0 text-faint" />
+                  <span class="truncate">{p.name}</span>
+                  {#if p.production}
+                    <span class="badge h-4 shrink-0 bg-prod px-1 text-[9.5px] text-white">Prod</span>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="hint">None yet. Edit a connection and turn on Claude Code access under Safety.</p>
+          {/if}
+        </div>
+
+        {#if ccStatus}
+          <div class="field">
+            <span class="label">Command</span>
+            {#if ccStatus.shimPath}
+              <div class="flex min-h-7 items-center gap-2 text-[12px]">
+                {#if ccStatus.installed}
+                  <span class="status-dot bg-success"></span>
+                  <code class="min-w-0 flex-1 truncate font-mono text-[11.5px] text-muted" title={ccStatus.installPath}
+                    >{ccStatus.installPath}</code
+                  >
+                  <button type="button" class="btn btn-sm" onclick={() => setCliInstalled(false)} disabled={ccBusy}>
+                    {#if ccBusy}<span class="spinner size-3"></span>{/if}Remove command
+                  </button>
+                {:else}
+                  <span class="min-w-0 flex-1 text-muted">Not installed</span>
+                  <button type="button" class="btn btn-sm" onclick={() => setCliInstalled(true)} disabled={ccBusy || !!ccStatus.conflict}>
+                    {#if ccBusy}<span class="spinner size-3"></span>{/if}Install command
+                  </button>
+                {/if}
+              </div>
+              {#if ccStatus.conflict}
+                <p class="text-[11.5px] text-danger">{ccStatus.conflict}</p>
+              {/if}
+              <p class="hint">
+                Links <span class="font-mono">db-tool</span> into <span class="font-mono">~/.local/bin</span> (make sure it is on
+                your PATH). Try <span class="font-mono">db-tool connections</span> in a terminal.
+              </p>
+            {:else}
+              <p class="hint">
+                Running from source: use <span class="font-mono">pnpm cli</span> in the repository. The installable command
+                comes with the packaged app.
+              </p>
+            {/if}
+          </div>
+
+          <div class="field">
+            <span class="label">Add to a project</span>
+            <div class="flex items-start gap-2">
+              <code
+                class="min-w-0 flex-1 rounded-md border border-border bg-sunken px-2 py-1 font-mono text-[11.5px] break-all select-text"
+                >{ccStatus.mcpCommand}</code
+              >
+              <button type="button" class="btn btn-sm shrink-0" onclick={copyMcpCommand} aria-live="polite">
+                {#if ccCopied}<Check class="size-3" />Copied{:else}<Copy class="size-3" />Copy{/if}
+              </button>
+            </div>
+            <p class="hint">
+              Run it in the project's folder to give that project the MCP server. Append
+              <span class="font-mono">--connections "Name"</span> to limit the project to specific connections, or add
+              <span class="font-mono">-s project</span> after <span class="font-mono">add</span> to write a shared
+              <span class="font-mono">.mcp.json</span>.
+            </p>
+          </div>
+
+          <p class="rounded-md border border-border bg-sunken/50 px-3 py-2 text-[12px] leading-snug text-muted">
+            Query results go to Claude as part of the conversation, so only share connections whose data you are
+            comfortable sending. Every call is logged to
+            <span class="font-mono break-all">{ccStatus.auditFile}</span>.
+          </p>
+        {/if}
+        {#if ccError}
+          <div class="flex items-start gap-2">
+            <p class="min-w-0 flex-1 text-[12px] text-danger" role="alert">{ccError}</p>
+            {#if !ccStatus}
+              <button type="button" class="btn btn-sm shrink-0" onclick={() => loadClaudeCode()}>
+                <RefreshCw class="size-3" />Retry
+              </button>
+            {/if}
+          </div>
+        {/if}
       </div>
     {:else}
       <h3 class="mb-3 text-[13px] font-semibold">About</h3>

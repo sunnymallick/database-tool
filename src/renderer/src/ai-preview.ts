@@ -36,6 +36,7 @@ function profile(p: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'id' | 
     group: null,
     production: false,
     readOnly: false,
+    claudeCodeAccess: false,
     hasPassword: false,
     createdAt: now,
     updatedAt: now,

@@ -13,3 +13,7 @@ mac:
   category: public.app-category.developer-tools
   target: dir
   identity: null
+extraResources:
+  # The db-tool CLI / MCP server shim (see resources/bin/db-tool).
+  - from: resources/bin
+    to: bin

@@ -10,7 +10,13 @@ export default defineConfig({
     resolve: { alias: { '@shared': shared } },
     build: {
       externalizeDeps: true,
-      rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } }
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          // The db-tool CLI / MCP server (runs without Electron's app APIs).
+          cli: resolve(__dirname, 'src/cli/index.ts')
+        }
+      }
     }
   },
   preload: {

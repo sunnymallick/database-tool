@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fixtures": "tsx scripts/make-fixtures.ts",
+    "cli": "NODE_OPTIONS=--no-warnings tsx --tsconfig tsconfig.node.json src/cli/index.ts",
     "test:e2e": "pnpm build && node tests/e2e/smoke.mjs && node tests/e2e/files.mjs",
     "package:mac": "pnpm build && electron-builder --mac --dir",
     "test:tour": "pnpm build && node tests/e2e/ui-tour.mjs"

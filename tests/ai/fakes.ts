@@ -33,6 +33,7 @@ export function makeProfile(overrides: Partial<ConnectionProfile> = {}): Connect
     group: null,
     production: false,
     readOnly: false,
+    claudeCodeAccess: false,
     hasPassword: false,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',

@@ -44,6 +44,7 @@ export function profile(kind: DbKind, overrides: Partial<ConnectionProfile> = {}
     group: null,
     production: false,
     readOnly: false,
+    claudeCodeAccess: false,
     hasPassword: false,
     createdAt: now,
     updatedAt: now,

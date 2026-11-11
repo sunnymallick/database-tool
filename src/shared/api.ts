@@ -10,6 +10,7 @@
 import type {
   AppInfo,
   AppSettings,
+  ClaudeCodeStatus,
   ApplyChangesRequest,
   ApplyChangesResult,
   ConnRef,
@@ -105,6 +106,13 @@ export interface ApiMethods {
   /** Renderer-owned workspace state (open tabs, layout). Opaque to main. */
   'session.load': M<void, unknown>;
   'session.save': M<unknown, void>;
+
+  // -- Claude Code integration (main/ipc/claude-code.ts) ----------------------
+  'claudeCode.status': M<void, ClaudeCodeStatus>;
+  /** Link the bundled db-tool command into ~/.local/bin. */
+  'claudeCode.installCli': M<void, ClaudeCodeStatus>;
+  /** Remove that link (only if it points at this app). */
+  'claudeCode.uninstallCli': M<void, ClaudeCodeStatus>;
 
   // -- AI (main/ipc/ai.ts) -----------------------------------------------------
   'ai.status': M<{ refresh?: boolean }, AiStatus>;

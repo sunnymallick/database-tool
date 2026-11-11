@@ -44,6 +44,7 @@ export function blankProfile(kind: DbKind = 'postgres'): ConnectionProfile {
     group: null,
     production: false,
     readOnly: false,
+    claudeCodeAccess: false,
     hasPassword: false,
     createdAt: now,
     updatedAt: now

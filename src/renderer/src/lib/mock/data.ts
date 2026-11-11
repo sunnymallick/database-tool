@@ -15,6 +15,7 @@
  */
 import type {
   AppSettings,
+  ClaudeCodeStatus,
   ColumnInfo,
   ConnRef,
   ConnectionProfile,
@@ -81,6 +82,7 @@ function makeProfile(p: Partial<ConnectionProfile> & Pick<ConnectionProfile, 'id
     group: null,
     production: false,
     readOnly: false,
+    claudeCodeAccess: false,
     hasPassword: false,
     createdAt: SEEDED_AT,
     updatedAt: SEEDED_AT,
@@ -453,7 +455,30 @@ function referencedBy(db: MockDatabase, t: MockTable): ForeignKeyInfo[] {
 // Handlers
 // ---------------------------------------------------------------------------
 
+let claudeCodeInstalled = false;
+function mockClaudeCode(): ClaudeCodeStatus {
+  return {
+    shimPath: '/Applications/Database Tool.app/Contents/Resources/bin/db-tool',
+    installPath: '~/.local/bin/db-tool',
+    installed: claudeCodeInstalled,
+    conflict: null,
+    mcpCommand: 'claude mcp add db-tool -- ~/.local/bin/db-tool mcp',
+    auditFile: '~/Library/Application Support/database-tool/claude-code-audit.jsonl'
+  };
+}
+
 export const dataMock: MockHandlers = {
+  // -- Claude Code integration -------------------------------------------------
+  'claudeCode.status': () => mockClaudeCode(),
+  'claudeCode.installCli': () => {
+    claudeCodeInstalled = true;
+    return mockClaudeCode();
+  },
+  'claudeCode.uninstallCli': () => {
+    claudeCodeInstalled = false;
+    return mockClaudeCode();
+  },
+
   // -- app / files ----------------------------------------------------------
   'app.info': () => ({
     name: 'Database Tool',

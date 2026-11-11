@@ -218,7 +218,7 @@ const fail = (message: string, extra?: Record<string, unknown>): ToolOutput => (
   isError: true
 });
 
-function failureFromError(err: unknown): ToolOutput {
+export function failureFromError(err: unknown): ToolOutput {
   if (err instanceof QueryFailure) {
     const e = err.error;
     const extra: Record<string, unknown> = {};

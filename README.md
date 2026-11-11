@@ -42,6 +42,7 @@ The AI panel needs the Claude CLI to be signed in. If the panel says you're sign
 | Profiles, settings, history, snippets, open tabs | `~/Library/Application Support/database-tool/` |
 | Passwords | macOS Keychain, service `database-tool` |
 | AI conversation transcripts (needed for follow-up turns) | `~/.claude/projects/` |
+| Log of every Claude Code / `db-tool` database call | `~/Library/Application Support/database-tool/claude-code-audit.jsonl` |
 
 Set `DATABASE_TOOL_HOME` to use a different data folder, as the tests do. `pnpm dev` uses its own Electron profile folder, so it can run while the installed app is open.
 
@@ -49,7 +50,56 @@ Set `DATABASE_TOOL_HOME` to use a different data folder, as the tests do. `pnpm 
 
 - **Read-only profiles** refuse any statement that can write. The check runs in the main process, so it covers the editor, the table grids, and the AI.
 - **Production profiles** get red accents everywhere. They ask for confirmation before write statements and before applying grid edits. The AI must get your approval for every write, even with "Allow writes" on.
+- **Claude Code access** is off for every connection until you turn it on (connection settings, Safety). Access from Claude Code and `db-tool` is always read-only, whatever the profile says. See below.
 - **The AI** can only use this app's database tools. Claude Code's built-in tools, your CLAUDE.md, your settings, and your MCP servers are all disabled for it.
+
+## Use it from Claude Code
+
+`db-tool` gives Claude Code sessions, and your terminal, **read-only** access to the connections you share.
+
+1. Edit a connection and turn on **Claude Code access** under Safety. Shared connections show a `>_` badge in the sidebar.
+2. In **Settings → Claude Code**, click **Install command**. This links `db-tool` into `~/.local/bin`, which must be on your `PATH`.
+3. In a project folder, register the MCP server for that project. The exact command, with Copy, is in the same settings page:
+
+   ```sh
+   claude mcp add db-tool -- ~/.local/bin/db-tool mcp
+   # limit this project to some connections:
+   claude mcp add db-tool -- ~/.local/bin/db-tool mcp --connections "Local PG,Fixtures"
+   ```
+
+   The default scope is the current project, private to you. Add `-s project` after `add` to write a shared `.mcp.json` instead.
+
+Claude Code then gets these tools: `list_connections`, `list_schemas`, `list_tables`, `describe_table`, `table_ddl`, and `run_select` (one read-only statement, at most 100 rows).
+
+The same things work in a terminal:
+
+```sh
+db-tool connections
+db-tool tables "Local PG" sales
+db-tool describe "Local PG" orders --schema sales
+db-tool query "Local PG" "SELECT status, count(*) FROM sales.orders GROUP BY 1"
+db-tool query "Local PG" -f report.sql --format csv > report.csv
+```
+
+On a terminal the output is a table. When piped it is compact JSON. Use `--format table|json|csv|tsv` to choose, and `--limit N` to set the row cap (default 1000).
+
+Exit codes are 0 for success, 1 for a database error, 2 for bad usage, and 3 when the connection isn't shared or the statement isn't read-only.
+
+**How access is enforced.**
+
+- Only shared profiles are visible, and each one is forced read-only.
+- Every statement must be a plain read: `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE`, `VALUES` or `PRAGMA`. Transaction control, `SET`, `USE`, `DECLARE` and `EXEC` are refused. On SQL Server they are refused anywhere in the text, because T-SQL needs no separator between statements.
+- Statements also go through the app's write guard. Postgres and MySQL then get a read-only server session, and SQLite opens the file read-only.
+- If you turn access off, a running MCP server stops serving that connection on its next call.
+
+**Limits.**
+
+- SQL Server has no server-side read-only session, so the statement checks are the only guard there.
+- On SQL Server and MySQL, a query can still name another database on the same server, for example `SELECT … FROM otherdb.dbo.t`. The connection's login permissions decide what it can read, so a production database is safest behind a login that is read-only and scoped to one database.
+
+**Your data goes to Claude.** Query results become part of the Claude conversation, so share connections with that in mind.
+
+**From source:** run `pnpm cli <args>`. For example, `pnpm cli connections`.
 
 ## Develop
 

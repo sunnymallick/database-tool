@@ -1,0 +1,18 @@
+#!/bin/sh
+# db-tool: read-only command-line and MCP access to the connections shared
+# with Claude Code in Database Tool. Runs the bundled CLI on the app's own
+# Electron binary in Node mode, so no separate Node install is needed.
+# Install with Settings > Claude Code > Install command, which symlinks this
+# file to ~/.local/bin/db-tool.
+set -e
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+resources=$(cd "$(dirname "$self")/.." && pwd)
+contents=$(dirname "$resources")
+ELECTRON_RUN_AS_NODE=1 exec "$contents/MacOS/Database Tool" --no-warnings "$resources/app.asar/out/main/cli.js" "$@"

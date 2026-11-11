@@ -22,6 +22,7 @@
   import SquareTerminal from '@lucide/svelte/icons/square-terminal';
   import Table2 from '@lucide/svelte/icons/table-2';
   import TableProperties from '@lucide/svelte/icons/table-properties';
+  import Terminal from '@lucide/svelte/icons/terminal';
   import Trash from '@lucide/svelte/icons/trash';
   import Unplug from '@lucide/svelte/icons/unplug';
   import CopyPlus from '@lucide/svelte/icons/copy-plus';
@@ -345,6 +346,9 @@
               {/if}
               {#if p.readOnly}
                 <span title="Read-only connection" class="shrink-0 text-faint"><Lock class="size-3" /></span>
+              {/if}
+              {#if p.claudeCodeAccess}
+                <span title="Shared with Claude Code (read-only)" class="shrink-0 text-faint"><Terminal class="size-3" /></span>
               {/if}
               <span class="ml-auto flex shrink-0 items-center pl-1">
                 <StatusDot state={connState} error={connections.profileError(p)} />

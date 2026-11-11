@@ -528,6 +528,11 @@
           hint="Red accents everywhere and a confirmation before write statements."
         />
         <Switch bind:checked={profile.readOnly} label="Read-only" hint="Blocks every statement that can write." />
+        <Switch
+          bind:checked={profile.claudeCodeAccess}
+          label="Claude Code access"
+          hint="Lets Claude Code and the db-tool command read this database. Always read-only there."
+        />
       </div>
     </section>
 

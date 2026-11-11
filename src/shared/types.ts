@@ -67,6 +67,11 @@ export interface ConnectionProfile {
   production: boolean;
   /** Refuse every statement that can write (enforced in the main process). */
   readOnly: boolean;
+  /**
+   * Visible to Claude Code (the db-tool MCP server and CLI). Access from
+   * there is always read-only, whatever `readOnly` says.
+   */
+  claudeCodeAccess: boolean;
   /** Derived on read: a password is stored for this profile. Ignored on save. */
   hasPassword: boolean;
   createdAt: string;
@@ -436,6 +441,22 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiAllowWrites: false,
   claudeCliPath: ''
 };
+
+/** Settings > Claude Code: the db-tool command and how to register its MCP server. */
+export interface ClaudeCodeStatus {
+  /** The command bundled in the app, or null when running from source. */
+  shimPath: string | null;
+  /** Where "Install command" links it (~/.local/bin/db-tool). */
+  installPath: string;
+  /** installPath is a link to shimPath. */
+  installed: boolean;
+  /** Something else (a file, or a link elsewhere) already sits at installPath. */
+  conflict: string | null;
+  /** What to run in a project folder to register the MCP server there. */
+  mcpCommand: string;
+  /** The audit log of every Claude Code / CLI database call. */
+  auditFile: string;
+}
 
 export interface AppInfo {
   name: string;

@@ -53,6 +53,7 @@ export function normalizeProfile(raw: Partial<ConnectionProfile>, now = new Date
     group: typeof raw.group === 'string' && raw.group.trim() ? raw.group.trim() : null,
     production: raw.production === true,
     readOnly: raw.readOnly === true,
+    claudeCodeAccess: raw.claudeCodeAccess === true,
     hasPassword: false,
     createdAt: asString(raw.createdAt) || now,
     updatedAt: asString(raw.updatedAt) || now
